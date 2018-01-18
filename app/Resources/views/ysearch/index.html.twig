@@ -1,6 +1,142 @@
 {% extends 'base.html.twig' %}
 
 {% block body %}
-    <h2 id="test1">Bingooo I am here!</h2>
+    {% block javascript %}
+    <script type="application/javascript">
+        $(document).ready(function() {
+            var GoogleApiKey = 'AIzaSyDSHMg2SXJaYkl7bUNGKZc2RG_N1W1T9uQ';
+            //Here is GoogleAPICall();
+            $("#pgNext").on( "click", function( event ) {
+                $("#pageToken").val($("#pgNext").val());
+                /* On Next Navigation Button APICall */
+                GoogleAPICall();
+            });
+            $("#pgPrev").on( "click", function( event ) {
+                $("#pageToken").val($("#pgPrev").val());
+                /* On Previous Navigation Button APICall */
+                GoogleAPICall();
+            });
+            $("#searchBtn").on( "click", function( event ) {
+                /* On Search Button APICall */
+                GoogleAPICall();
+                return false;
+            });
+            /* Populating Search suggest from google Server based on textbox contents */
+            jQuery( "#searchBox" ).autocomplete({
+                source: function( request, response ) {
+                    //
+                    var sqValue = [];
+                    jQuery.ajax({
+                        type: "POST",
+                        url: "http://suggestqueries.google.com/complete/search?hl=en&ds=yt&client=youtube&hjson=t&cp=1",
+                        dataType: 'jsonp',
+                        data: jQuery.extend({
+                            q: request.term
+                        }, {  }),
+                        success: function(data){
+                            console.log(data[1]);
+                            obj = data[1];
+                            jQuery.each( obj, function( key, value ) {
+                                sqValue.push(value[0]);
+                            });
+                            response( sqValue);
+                        }
+                    });
+                },
+                select: function( event, ui ) {
+                    setTimeout( function () {
+                        GoogleAPICall();
+                    }, 300);
+                }
+            });
+            /* Requesting individual Video Details passing its ID */
+            function getVideoDetails(ids){
+                $.ajax({
+                    cache: false,
+                    data: $.extend({
+                        key: GoogleApiKey,
+                        part: 'snippet,contentDetails,statistics'
+                    }, {id: ids}),
+                    dataType: 'json',
+                    type: 'GET',
+                    timeout: 5000,
+                    fields: "items(id,contentDetails,statistics,snippet(publishedAt,channelTitle,channelId,title,description,thumbnails(high)))",
+                    url: 'https://www.googleapis.com/youtube/v3/videos'
+                })
+                /* Once the server response is completed, to list the available resources and response as html inside the ul element*/
+                    .done(function(data) {
+                        var items = data.items, videoList = "";
+                        $.each(items, function(index,e) {
+                            videoList = videoList + '<li class="vList-item"><div class="vWrapper"><div class="thumb-wrapper"><a href="" class="thumb-link"><span class="simple-thumb-wrap"><img alt="'+e.snippet.title+'" src="'+e.snippet.thumbnails.high.url+'" class="vthumbs"></span></a></div><a href="" class="vLinks" title="'+e.snippet.title+'"><span class="title">'+e.snippet.title+'</span><span class="stat attribution"> Uploaded by: <span>'+e.snippet.channelTitle+'</span></span></a></div></li>';
+                        });
+                        $("#vidList").html(videoList);
+                        // JSON Responce to Fetch list of videos
+                        new PrettyJSON.view.Node({
+                            el:$(".watchBody"),
+                            data:data
+                        });
+                    });
+            }
+            /* Calling the Google V3 API Server for Search Results*/
+            function GoogleAPICall(){
+            $.ajax({
+                cache: false,
+                data: $.extend({
+                    key: GoogleApiKey,
+                    q: $('#searchBox').val(),
+                    part: 'snippet'
+                }, {maxResults:20,pageToken:$("#pageToken").val()}),
+                dataType: 'json',
+                type: 'GET',
+                timeout: 5000,
+                fields: "pageInfo,items(id(videoId)),nextPageToken,prevPageToken",
+                url: 'https://www.googleapis.com/youtube/v3/search'
+            })
+                /* After the results are responsed and completed hide and show navigation buttons*/
+                .done(function(data) {
+                    $('.btns').show();
+                    if (typeof data.prevPageToken === "undefined") {$("#pgPrev").hide();}else{$("#pgPrev").show();}
+                    if (typeof data.prevPageToken === "undefined") {$("#pgPrevDiss").show();}else{$("#pgPrevDiss").hide();}
+                    if (typeof data.nextPageToken === "undefined") {$("#pgNext").hide();}else{$("#pgNext").show();}
+                    var items = data.items, videoids = [];
+                    $("#pgNext").val(data.nextPageToken);
+                    $("#pgPrev").val(data.prevPageToken);
+                    $.each(items, function(index,e) {
+                        videoids.push(e.id.videoId);
+                    });
+                    getVideoDetails(videoids.join());
+                });
+        }
+    });
+    </script>
+    {% endblock %}
+    {% block contents %}
+
+            <!-- The html to display the results and the form -->
+            <div id="container" class="container" style="clear:both;">
+                    <div id="contWrapper" class="" style="overflow:hidden;">
+                        <div class="frmContainer">
+                            <form action="" method="post" name="frmSearch" id="frmSearch">
+                                <input type="search" name="searchBox" id="searchBox" placeholder="Search YouTube..." class="ui-autocomplete-input" autocomplete="off">
+                                <button class="icon" id="searchBtn"> Search </button>
+                            </form>
+                        </div>
+                        <div>
+                            <input type="hidden" id="pageToken" value="">
+                            <div class="btns" role="group" aria-label="..." style="display:none;">
+                                <button type="button" id="pgPrevDiss" disabled value="" class="btn">Prev</button>
+                                <button type="button" id="pgPrev" value="" class="btn">Prev</button>
+                                <button type="button" id="pgNext" value="" class="btn">Next</button>
+                            </div>
+                        </div>
+                        <div id="vidContainer" class="vidResults">
+                            <ul id="vidList" class="vList">
+                            </ul>
+                        </div>
+                    </div>
+
+            </div>
+
+    {% endblock %}
 
 {% endblock %}
